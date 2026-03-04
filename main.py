@@ -1,9 +1,11 @@
 from typing import Any
 import click
 
+from agent.agent import Agent
+
 class CLI:
     def __init__(self):
-        pass
+        self.agent = Agent | None = None
 
     def run_single(self):
         pass
@@ -17,7 +19,7 @@ def main(
 ):
     print(prompt)
     messages=[{"role":"user", "content":prompt}]
-    asyncio.run(asyncio.run(messages))
+    asyncio.run(run(messages))
     print("done")
     
 main()
