@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
+from pydantic.json import model_json_schema
 
 
 class ToolKind(str, Enum):
@@ -23,11 +24,44 @@ class ToolResult:
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    truncated: bool = False
+    
+    @classmethod
+    def error_result(
+        cls, 
+        error: str,
+        output: str = "",
+        ):
+        return cls(
+            success=False, 
+            output=output, 
+            error=error
+        )
+    
+    @classmethod
+    def success_result(
+        cls, 
+        output: str,
+        **kwargs: Any,
+        ):
+        return cls(
+            success=False, 
+            output=output, 
+            error=None,
+            **kwargs,
+        )
+
 
 @dataclass
 class ToolInvocation:
     params: dict[str, Any]
     cwd: Path
+
+@dataclass
+class ToolConfirmation:
+    tool_name: str
+    params: dict[str, Any]
+    description: str
 
 class Tool(abc.ABC):
     name: str = "base_tool"
@@ -73,8 +107,39 @@ class Tool(abc.ABC):
             }
     
     async def get_confirmation(self, invocation: ToolInvocation) -> ToolInvocation | None:
-        if self.is_mutating(invocation.params):
-            # For now we just return None to indicate no confirmation
-            # In a real implementation, this could prompt the user or an external system for confirmation
+        if not self.is_mutating(invocation.params):
             return None
-        return invocation
+        
+        return ToolConfirmation(
+            tool_name=self.name,
+            params=invocation.params,
+            description=f"Execute {self.name}",
+        )
+    
+    def to_openai_schema(self) -> dict[str, Any]:
+        schema = self.schema
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            json_schema = model_json_schema(schema, mode="serialization")
+
+            return {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": json_schema.get("properties", {}),
+                    "required": json_schema.get("required", []),
+                },
+            }
+        if isinstance(schema, dict):
+            result= {
+                "name": self.name,
+                "description": self.description,
+            }
+            if 'parameters' in schema:
+                result["parameters"]= schema['parameters']
+            else:
+                result["parameters"]= schema
+
+            return result
+    
+        raise ValueError(f"Invalid schema type for tool{self.name}: {type(schema)}")
