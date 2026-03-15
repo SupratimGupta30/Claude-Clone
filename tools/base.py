@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from pydantic.json import model_json_schema
+from pydantic.json_schema import model_json_schema
 
 
 class ToolKind(str, Enum):
@@ -25,17 +25,19 @@ class ToolResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     truncated: bool = False
-    
+
     @classmethod
     def error_result(
         cls, 
         error: str,
         output: str = "",
+        **kwargs: Any,
         ):
         return cls(
             success=False, 
             output=output, 
-            error=error
+            error=error,
+            **kwargs,
         )
     
     @classmethod
